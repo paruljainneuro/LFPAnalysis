@@ -11,11 +11,16 @@ from multiprocessing import Pool
 
 import patsy
 from statsmodels.api import OLS
-from pymer4.models import Lmer
 from tqdm import tqdm
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy import stats
+
+from pymer4.models import Lmer
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
+
+mumin = importr("MuMIn")
 
 import warnings 
 warnings.filterwarnings('ignore')
@@ -269,9 +274,12 @@ def permutation_mixed_effects_regression_zscore(data, formula, n_permutations=10
     for c_key in original_model_full.ranef_var.index:
         random_effects_var[c_key+'_Var'] = original_model_full.ranef_var.loc[c_key]['Var']
         random_effects_std[c_key+'_Std'] = original_model_full.ranef_var.loc[c_key]['Std']
+    r2 = mumin.r_squaredGLMM(original_model_full.model_obj)
     results = pd.DataFrame({
         'Regressor': original_params.index,
         'Original_Estimate': original_params,
+        'Original_BSE': original_model.SE,
+        'Original_P_Value': original_model['P-val'],
         'Permuted_Mean': permuted_means,
         'Permuted_Std': permuted_stds,
         'Z_Score': z_scores,
@@ -279,7 +287,9 @@ def permutation_mixed_effects_regression_zscore(data, formula, n_permutations=10
         'P_NonParametric': p_nonparametric,
         'AIC': original_model_full.AIC,
         'BIC': original_model_full.BIC,
-        'logLike': original_model_full.logLike
+        'logLike': original_model_full.logLike,
+        'marginal_r2': r2[0],
+        'conditional_r2': r2[1],
         } | random_effects_var | random_effects_std)
 
     # Plotting
@@ -392,6 +402,7 @@ def time_resolved_mixed_effects_regression_single_channel(timeseries=None, regre
             for c_key in original_model_full.ranef_var.index:
                 random_effects_var[c_key+'_Var'] = original_model_full.ranef_var.loc[c_key]['Var']
                 random_effects_std[c_key+'_Std'] = original_model_full.ranef_var.loc[c_key]['Std']
+            r2 = mumin.r_squaredGLMM(original_model_full.model_obj)
             # Prepare results
             results = pd.DataFrame({
                 'Original_Estimate': original_model.Estimate,
@@ -400,7 +411,9 @@ def time_resolved_mixed_effects_regression_single_channel(timeseries=None, regre
                 'ts': ts,
                 'AIC': original_model_full.AIC,
                 'BIC': original_model_full.BIC,
-                'logLike': original_model_full.logLike
+                'logLike': original_model_full.logLike,
+                'marginal_r2': r2[0],
+                'conditional_r2': r2[1],
             } | random_effects_var | random_effects_std)
         all_res.append(results)
         
